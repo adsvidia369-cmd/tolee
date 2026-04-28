@@ -1,0 +1,337 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String   @id @default(cuid())
+  username      String   @unique
+  name          String
+  email         String   @unique
+  passwordHash  String?
+  avatar        String?
+  bio           String?
+  website       String?
+  isVerified    Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  // Gamification & Trust
+  totalPoints   Int      @default(0)
+  level         Int      @default(1)
+  trustScore    Int      @default(100)
+  blockedUntil  DateTime? // For AI 15 days block
+
+  posts         Post[]
+  tolees        ToleeMember[]
+  ownedTolees   Tolee[]       @relation("ToleeOwner")
+  followers     Follow[]      @relation("Following")
+  following     Follow[]      @relation("Follower")
+  likes         Like[]
+  comments      Comment[]
+  notifications Notification[]
+  sentMessages  Message[]     @relation("Sender")
+  savedPosts    SavedPost[]
+  stories       Story[]
+  
+  // New features
+  listings      Listing[]     @relation("Seller")
+  courseProgress LessonProgress[]
+  transactions  Transaction[]
+}
+
+model Tolee {
+  id              String   @id @default(cuid())
+  name            String
+  slug            String   @unique
+  description     String?
+  avatar          String?
+  coverImage      String?
+  isPrivate       Boolean  @default(false)
+  rules           String?
+  category        String?
+  
+  // Settings
+  pendingPostApproval Boolean @default(false)
+  broadcastMode   Boolean  @default(false)
+  
+  // Monetization
+  price           Float    @default(0) // 0 means free
+  paymentType     String   @default("free") // "free", "monthly", "yearly", "one-time"
+  
+  createdAt       DateTime @default(now())
+
+  ownerId         String
+  owner           User     @relation("ToleeOwner", fields: [ownerId], references: [id])
+  members         ToleeMember[]
+  posts           PostTolee[]
+  
+  // LMS
+  courses         Course[]
+}
+
+model ToleeMember {
+  id        String   @id @default(cuid())
+  role      String   @default("member") // "admin", "moderator", "member"
+  points    Int      @default(0) // Points earned specifically in this Tolee
+  status    String   @default("approved") // "pending", "approved", "rejected" - for private Tolee
+  joinedAt  DateTime @default(now())
+
+  // Subscription tracking
+  subscriptionStatus String @default("active") // "active", "past_due", "canceled"
+  validUntil         DateTime? 
+
+  userId    String
+  toleeId   String
+  user      User     @relation(fields: [userId], references: [id])
+  tolee     Tolee    @relation(fields: [toleeId], references: [id])
+
+  @@unique([userId, toleeId])
+}
+
+// ---------------------------------------------------------
+// FEED & POSTS ENGINE
+// ---------------------------------------------------------
+model Post {
+  id          String   @id @default(cuid())
+  caption     String?
+  mediaUrls   String?  // SQLite: comma-separated URLs
+  mediaTypes  String?  // SQLite: comma-separated types
+  postType    String   @default("regular") // "regular", "poll", "event", "article", "win"
+  visibility  String   @default("public") // "public", "followers", "tolee_only"
+  
+  // AI Moderation & Admin Control
+  status      String   @default("published") // "pending", "published", "rejected", "flagged_ai"
+  aiReport    String?  // details if flagged by AI
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id])
+
+  // CORE RULE: A post MUST have at least one Tolee
+  tolees      PostTolee[]
+  likes       Like[]
+  comments    Comment[]
+  savedBy     SavedPost[]
+}
+
+model PostTolee {
+  postId    String
+  toleeId   String
+  isPinned  Boolean  @default(false)
+  
+  post      Post   @relation(fields: [postId], references: [id])
+  tolee     Tolee  @relation(fields: [toleeId], references: [id])
+
+  @@id([postId, toleeId])
+}
+
+// ---------------------------------------------------------
+// SKOOL MODULE: CLASSROOM / LMS
+// ---------------------------------------------------------
+model Course {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  thumbnail   String?
+  order       Int      @default(0)
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  toleeId     String
+  tolee       Tolee    @relation(fields: [toleeId], references: [id])
+  
+  modules     Module[]
+}
+
+model Module {
+  id          String   @id @default(cuid())
+  title       String
+  order       Int      @default(0)
+  
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id])
+  
+  lessons     Lesson[]
+}
+
+model Lesson {
+  id          String   @id @default(cuid())
+  title       String
+  content     String?  // Rich text or markdown
+  videoUrl    String?
+  order       Int      @default(0)
+  
+  // Drip content logic
+  unlockDays  Int      @default(0) // 0 means instantly unlocked
+  
+  moduleId    String
+  module      Module   @relation(fields: [moduleId], references: [id])
+  
+  progress    LessonProgress[]
+}
+
+model LessonProgress {
+  id          String   @id @default(cuid())
+  isCompleted Boolean  @default(false)
+  completedAt DateTime?
+
+  userId      String
+  lessonId    String
+  user        User     @relation(fields: [userId], references: [id])
+  lesson      Lesson   @relation(fields: [lessonId], references: [id])
+
+  @@unique([userId, lessonId])
+}
+
+// ---------------------------------------------------------
+// MARKETPLACE ENGINE (Local Buy/Sell)
+// ---------------------------------------------------------
+model Listing {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  price       Float
+  currency    String   @default("INR")
+  images      String?  // SQLite: comma-separated URLs
+  category    String
+  condition   String   // "new", "like_new", "used", "refurbished"
+  
+  // Location logic
+  locationText String
+  latitude    Float?
+  longitude   Float?
+  
+  status      String   @default("active") // "active", "sold", "hidden"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sellerId    String
+  seller      User     @relation("Seller", fields: [sellerId], references: [id])
+}
+
+// ---------------------------------------------------------
+// MONETIZATION / TRANSACTIONS
+// ---------------------------------------------------------
+model Transaction {
+  id            String   @id @default(cuid())
+  amount        Float
+  currency      String   @default("INR")
+  status        String   // "success", "failed", "pending"
+  paymentMethod String?
+  referenceId   String?  // Stripe/Razorpay payment ID
+  createdAt     DateTime @default(now())
+
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+}
+
+// ---------------------------------------------------------
+// SOCIAL & INTERACTIONS
+// ---------------------------------------------------------
+model Follow {
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+  follower    User @relation("Follower", fields: [followerId], references: [id])
+  following   User @relation("Following", fields: [followingId], references: [id])
+
+  @@id([followerId, followingId])
+}
+
+model Like {
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+  user      User @relation(fields: [userId], references: [id])
+  post      Post @relation(fields: [postId], references: [id])
+
+  @@id([userId, postId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+  authorId  String
+  postId    String
+  parentId  String?  
+  author    User     @relation(fields: [authorId], references: [id])
+  post      Post     @relation(fields: [postId], references: [id])
+  replies   Comment[] @relation("Replies")
+  parent    Comment?  @relation("Replies", fields: [parentId], references: [id])
+}
+
+model Story {
+  id         String   @id @default(cuid())
+  mediaUrl   String
+  mediaType  String   
+  expiresAt  DateTime 
+  createdAt  DateTime @default(now())
+  authorId   String
+  author     User     @relation(fields: [authorId], references: [id])
+  views      StoryView[]
+}
+
+model StoryView {
+  storyId   String
+  userId    String
+  viewedAt  DateTime @default(now())
+  story     Story @relation(fields: [storyId], references: [id])
+  @@id([storyId, userId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  type      String   
+  message   String
+  isRead    Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model Message {
+  id          String   @id @default(cuid())
+  content     String
+  mediaUrl    String?
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  senderId    String
+  chatId      String
+  sender      User     @relation("Sender", fields: [senderId], references: [id])
+  chat        Chat     @relation(fields: [chatId], references: [id])
+}
+
+model Chat {
+  id           String    @id @default(cuid())
+  isGroupChat  Boolean   @default(false)
+  name         String?
+  createdAt    DateTime  @default(now())
+  participants ChatParticipant[]
+  messages     Message[]
+}
+
+model ChatParticipant {
+  chatId    String
+  userId    String
+  chat      Chat @relation(fields: [chatId], references: [id])
+  @@id([chatId, userId])
+}
+
+model SavedPost {
+  userId    String
+  postId    String
+  savedAt   DateTime @default(now())
+  user      User @relation(fields: [userId], references: [id])
+  post      Post @relation(fields: [postId], references: [id])
+
+  @@id([userId, postId])
+}
