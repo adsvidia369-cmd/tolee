@@ -1,0 +1,37 @@
+'use client';
+
+import React, { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { toggleFollow } from '@/actions/user';
+
+export function FollowButton({ targetUserId, initialIsFollowing }: { targetUserId: string, initialIsFollowing: boolean }) {
+  const [isFollowing, setIsFollowing] = useState(initialIsFollowing);
+  const [loading, setLoading] = useState(false);
+
+  const handleFollow = async () => {
+    setLoading(true);
+    // Optimistic UI update
+    setIsFollowing(!isFollowing);
+    
+    const result = await toggleFollow(targetUserId);
+    if (!result.success) {
+      // Revert if failed
+      setIsFollowing(isFollowing);
+      alert(result.error || "Failed to follow user");
+    } else {
+      setIsFollowing(result.isFollowing!);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <Button 
+      onClick={handleFollow} 
+      disabled={loading}
+      variant={isFollowing ? "outline" : "default"}
+      className="w-full sm:w-auto font-bold px-8 rounded-full shadow-md"
+    >
+      {isFollowing ? 'Unfollow' : 'Follow'}
+    </Button>
+  );
+}

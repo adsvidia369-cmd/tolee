@@ -9,8 +9,11 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
 export const metadata: Metadata = {
   title: "Tolee - The Group Social Network",
-  description: "Every post belongs to a Tolee. Join communities and share moments.",
+  description: "Every post belongs to a Tolee. Join Tolees and share moments.",
 };
+
+import { Providers } from "@/components/Providers";
+import { BottomNav } from "@/components/BottomNav";
 
 export default function RootLayout({
   children,
@@ -20,18 +23,23 @@ export default function RootLayout({
   return (
     <html lang="en" className={cn("font-sans", inter.variable)}>
       <body className="antialiased min-h-screen bg-background flex flex-col">
-        {/* Global Top Navbar */}
-        <Header />
-        
-        <div className="flex flex-1 w-full relative">
-          {/* Global Sidebar - hidden on small screens, fixed on left for large */}
-          <Sidebar />
+        <Providers>
+          {/* Global Top Navbar */}
+          <Header />
           
-          {/* Main Content Area - padded left on large screens to accommodate fixed sidebar */}
-          <div className="flex-grow w-full lg:pl-64">
-            {children}
+          <div className="flex flex-1 w-full relative pb-16 lg:pb-0">
+            {/* Global Sidebar - hidden on small screens, fixed on left for large */}
+            <Sidebar />
+            
+            {/* Main Content Area - padded left on large screens to accommodate fixed sidebar */}
+            <div className="flex-grow w-full lg:pl-64">
+              {children}
+            </div>
           </div>
-        </div>
+          
+          {/* Global Bottom Navigation - visible only on small screens */}
+          <BottomNav />
+        </Providers>
       </body>
     </html>
   );

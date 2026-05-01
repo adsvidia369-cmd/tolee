@@ -3,20 +3,26 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Compass, Film, MessageCircle, Bell, PlusCircle, Settings, ShieldCheck, Hash } from 'lucide-react';
+import { Home, Compass, Film, MessageCircle, Bell, PlusCircle, Settings, ShieldCheck, Hash, Store } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { useSession } from 'next-auth/react';
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { status } = useSession();
+  const isAuthenticated = status === 'authenticated';
 
-  const mainNav = [
+  const mainNav = isAuthenticated ? [
     { name: 'Feed', href: '/feed', icon: Home },
     { name: 'Discover', href: '/', icon: Compass },
     { name: 'Reels', href: '/reels', icon: Film },
     { name: 'Chats', href: '/chat', icon: MessageCircle, badge: '5' },
     { name: 'Notifications', href: '/notifications', icon: Bell, badge: '12' },
+    { name: 'Marketplace', href: '/marketplace', icon: Store },
+  ] : [
+    { name: 'Discover', href: '/', icon: Compass },
   ];
 
   const yourTolees = [
@@ -64,54 +70,60 @@ export function Sidebar() {
         </div>
 
         {/* Tolees You Manage */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between px-3 mb-2">
-            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Tolees You Manage</h3>
-            <Button variant="ghost" size="icon" className="w-6 h-6 rounded-full text-gray-400 hover:text-primary"><PlusCircle className="w-4 h-4" /></Button>
+        {isAuthenticated && (
+          <div className="mb-6">
+            <div className="flex items-center justify-between px-3 mb-2">
+              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Tolees You Manage</h3>
+              <Button variant="ghost" size="icon" className="w-6 h-6 rounded-full text-gray-400 hover:text-primary"><PlusCircle className="w-4 h-4" /></Button>
+            </div>
+            <div className="space-y-1">
+              {managedTolees.map((tolee) => (
+                <Link key={tolee.name} href={tolee.href}>
+                  <Button variant="ghost" className="w-full justify-start rounded-xl h-11 px-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 overflow-hidden">
+                    <div className="relative w-7 h-7 mr-3 rounded-md overflow-hidden flex-shrink-0">
+                      <img src={tolee.avatar} alt={tolee.name} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 border border-black/10 rounded-md"></div>
+                    </div>
+                    <span className="truncate">{tolee.name}</span>
+                    <ShieldCheck className="w-3.5 h-3.5 ml-auto text-primary flex-shrink-0 opacity-70" />
+                  </Button>
+                </Link>
+              ))}
+            </div>
           </div>
-          <div className="space-y-1">
-            {managedTolees.map((tolee) => (
-              <Link key={tolee.name} href={tolee.href}>
-                <Button variant="ghost" className="w-full justify-start rounded-xl h-11 px-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 overflow-hidden">
-                  <div className="relative w-7 h-7 mr-3 rounded-md overflow-hidden flex-shrink-0">
-                    <img src={tolee.avatar} alt={tolee.name} className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 border border-black/10 rounded-md"></div>
-                  </div>
-                  <span className="truncate">{tolee.name}</span>
-                  <ShieldCheck className="w-3.5 h-3.5 ml-auto text-primary flex-shrink-0 opacity-70" />
-                </Button>
-              </Link>
-            ))}
-          </div>
-        </div>
+        )}
 
         {/* Your Tolees */}
-        <div className="mb-6">
-          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider px-3 mb-2">Your Tolees</h3>
-          <div className="space-y-1">
-            {joinedTolees.map((tolee) => (
-              <Link key={tolee.name} href={tolee.href}>
-                <Button variant="ghost" className="w-full justify-start rounded-xl h-11 px-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 overflow-hidden">
-                  <div className="relative w-7 h-7 mr-3 rounded-md overflow-hidden flex-shrink-0">
-                    <img src={tolee.avatar} alt={tolee.name} className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 border border-black/10 rounded-md"></div>
-                  </div>
-                  <span className="truncate">{tolee.name}</span>
-                </Button>
-              </Link>
-            ))}
+        {isAuthenticated && (
+          <div className="mb-6">
+            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider px-3 mb-2">Your Tolees</h3>
+            <div className="space-y-1">
+              {joinedTolees.map((tolee) => (
+                <Link key={tolee.name} href={tolee.href}>
+                  <Button variant="ghost" className="w-full justify-start rounded-xl h-11 px-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 overflow-hidden">
+                    <div className="relative w-7 h-7 mr-3 rounded-md overflow-hidden flex-shrink-0">
+                      <img src={tolee.avatar} alt={tolee.name} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 border border-black/10 rounded-md"></div>
+                    </div>
+                    <span className="truncate">{tolee.name}</span>
+                  </Button>
+                </Link>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
       </ScrollArea>
       
       {/* Settings / Bottom Footer */}
-      <div className="p-4 border-t border-gray-200 dark:border-gray-800">
-        <Button variant="ghost" className="w-full justify-start rounded-xl h-11 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-900">
-          <Settings className="w-5 h-5 mr-3" />
-          Settings & Privacy
-        </Button>
-      </div>
+      {isAuthenticated && (
+        <div className="p-4 border-t border-gray-200 dark:border-gray-800">
+          <Button variant="ghost" className="w-full justify-start rounded-xl h-11 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-900">
+            <Settings className="w-5 h-5 mr-3" />
+            Settings & Privacy
+          </Button>
+        </div>
+      )}
     </aside>
   );
 }

@@ -5,11 +5,13 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Image as ImageIcon, Video, Paperclip, CheckCircle2, ShieldCheck, Globe, Trophy, X } from 'lucide-react';
 
-export function CreatePostModal({ children, onPost }: { children: React.ReactNode, onPost?: (post: any) => void }) {
+export function CreatePostModal({ children, onPost, videoOnly = false }: { children: React.ReactNode, onPost?: (post: any) => void, videoOnly?: boolean }) {
   const [postType, setPostType] = useState('regular'); // regular, win
   const [content, setContent] = useState('');
   const [selectedTolees, setSelectedTolees] = useState<string[]>([]);
   const [media, setMedia] = useState<{type: 'image'|'video', url: string} | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -31,6 +33,7 @@ export function CreatePostModal({ children, onPost }: { children: React.ReactNod
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setSelectedFile(file);
       const url = URL.createObjectURL(file);
       const fileType = file.type.startsWith('video/') ? 'video' : 'image';
       setMedia({ type: fileType, url });
@@ -47,20 +50,44 @@ export function CreatePostModal({ children, onPost }: { children: React.ReactNod
     }
   };
 
-  const handlePost = () => {
+  const handlePost = async () => {
     if (onPost && isPostReady) {
+      setIsUploading(true);
       const selectedToleeObj = joinedTolees.find(t => t.id === selectedTolees[0]);
-      onPost({
+      
+      let finalMediaUrl = media?.url;
+      
+      if (selectedFile) {
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        
+        try {
+          const res = await fetch('/api/upload', {
+            method: 'POST',
+            body: formData
+          });
+          const data = await res.json();
+          if (data.success) {
+            finalMediaUrl = data.url;
+          }
+        } catch (e) {
+          console.error("Upload failed", e);
+        }
+      }
+
+      await onPost({
         content,
         postType,
         toleeName: selectedToleeObj?.name || 'Selected Tolees',
         toleeSlug: selectedToleeObj?.slug || 'group',
-        media: media
+        media: media && finalMediaUrl ? { type: media.type, url: finalMediaUrl } : null
       });
+      setIsUploading(false);
     }
     // Reset form
     setContent('');
     setMedia(null);
+    setSelectedFile(null);
     setSelectedTolees([]);
     setIsOpen(false);
   };
@@ -70,9 +97,8 @@ export function CreatePostModal({ children, onPost }: { children: React.ReactNod
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger render={React.isValidElement(children) ? children as React.ReactElement : <button>{children}</button>} />
-      
-      <DialogContent className="sm:max-w-[550px] p-0 bg-white dark:bg-[#121212] overflow-hidden rounded-2xl border-gray-200 dark:border-gray-800">
-        
+      <DialogContent className="sm:max-w-[550px] p-0 bg-white dark:bg-[#121212] overflow-y-auto max-h-[90vh] rounded-2xl border-gray-200 dark:border-gray-800">
+
         {/* Header */}
         <DialogHeader className="p-4 border-b border-gray-100 dark:border-gray-800 flex flex-row items-center justify-between">
           <DialogTitle className="text-xl font-bold">Create Post</DialogTitle>
@@ -119,7 +145,7 @@ export function CreatePostModal({ children, onPost }: { children: React.ReactNod
         {/* Media Preview */}
         {media && (
           <div className="px-4 pb-4 relative">
-            <button onClick={() => setMedia(null)} className="absolute top-2 right-6 z-10 bg-black/50 hover:bg-black/80 text-white rounded-full p-1 backdrop-blur-md">
+            <button onClick={() => { setMedia(null); setSelectedFile(null); }} className="absolute top-2 right-6 z-10 bg-black/50 hover:bg-black/80 text-white rounded-full p-1 backdrop-blur-md">
               <X className="w-4 h-4" />
             </button>
             {media.type === 'image' ? (
@@ -140,15 +166,19 @@ export function CreatePostModal({ children, onPost }: { children: React.ReactNod
               onChange={handleFileChange} 
               className="hidden" 
             />
-            <Button onClick={() => triggerFileInput('image/*')} variant="ghost" size="icon" className="text-green-500 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-950 rounded-full h-10 w-10">
-              <ImageIcon className="w-6 h-6" />
-            </Button>
+            {!videoOnly && (
+              <Button onClick={() => triggerFileInput('image/*')} variant="ghost" size="icon" className="text-green-500 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-950 rounded-full h-10 w-10">
+                <ImageIcon className="w-6 h-6" />
+              </Button>
+            )}
             <Button onClick={() => triggerFileInput('video/*')} variant="ghost" size="icon" className="text-blue-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-full h-10 w-10">
               <Video className="w-6 h-6" />
             </Button>
-            <Button onClick={() => triggerFileInput('*/*')} variant="ghost" size="icon" className="text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full h-10 w-10">
-              <Paperclip className="w-5 h-5" />
-            </Button>
+            {!videoOnly && (
+              <Button onClick={() => triggerFileInput('*/*')} variant="ghost" size="icon" className="text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full h-10 w-10">
+                <Paperclip className="w-5 h-5" />
+              </Button>
+            )}
           </div>
         </div>
 
@@ -201,10 +231,10 @@ export function CreatePostModal({ children, onPost }: { children: React.ReactNod
         <div className="p-4 bg-white dark:bg-[#121212] border-t border-gray-100 dark:border-gray-800">
           <Button 
             className="w-full h-12 text-base font-bold rounded-xl"
-            disabled={!isPostReady}
+            disabled={!isPostReady || isUploading}
             onClick={handlePost}
           >
-            Post to {selectedTolees.length > 0 ? `${selectedTolees.length} Tolees` : 'Tolee'}
+            {isUploading ? 'Uploading...' : `Post to ${selectedTolees.length > 0 ? `${selectedTolees.length} Tolees` : 'Tolee'}`}
           </Button>
         </div>
 

@@ -52,6 +52,9 @@ model Tolee {
   isPrivate       Boolean  @default(false)
   rules           String?
   category        String?
+  location        String?
+  membershipQuestions String?
+  welcomeMessage  String?
   
   // Settings
   pendingPostApproval Boolean @default(false)

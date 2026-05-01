@@ -7,6 +7,9 @@ import { Search, Globe } from 'lucide-react';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import Link from 'next/link';
 import { getTolees } from '@/actions/tolee';
+import { DiscoverGrid } from '@/components/DiscoverGrid';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/lib/auth';
 
 const categories = [
   { name: 'All', active: true },
@@ -21,6 +24,9 @@ const categories = [
 ];
 
 export default async function Home() {
+  const session = await getServerSession(authOptions);
+  const isAuthenticated = !!session?.user;
+
   const res = await getTolees();
   const dbTolees = res.success ? res.tolees : [];
 
@@ -42,10 +48,10 @@ export default async function Home() {
         {/* Header Section */}
         <div className="text-center mb-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-3 text-gray-900 dark:text-white">
-            Discover communities
+            Discover Tolees
           </h2>
           <p className="text-lg text-gray-600 dark:text-gray-400">
-            or <a href="#" className="text-primary hover:text-primary/80 transition-colors hover:underline font-medium">create your own</a>
+            or <Link href="/create-tolee" className="text-primary hover:text-primary/80 transition-colors hover:underline font-medium">create your own</Link>
           </p>
         </div>
 
@@ -90,57 +96,7 @@ export default async function Home() {
         </div>
 
         {/* Tolees Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-10 duration-700 delay-300">
-          {tolees.map((tolee: any) => (
-            <Link href={`/t/${tolee.slug}`} key={tolee.id} className="block h-full">
-              <Card 
-                className="overflow-hidden border border-gray-200 dark:border-gray-800 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 cursor-pointer group bg-white dark:bg-[#121212] flex flex-col h-full rounded-2xl"
-              >
-                {/* Banner */}
-                <div className="relative h-32 w-full bg-gray-200 dark:bg-gray-800 overflow-hidden">
-                  <img 
-                    src={tolee.banner} 
-                    alt={tolee.name} 
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
-                  <div className="absolute top-3 left-3 bg-black/40 backdrop-blur-md text-white text-xs font-bold px-2.5 py-1 rounded-full border border-white/20">
-                    #{tolee.rank}
-                  </div>
-                </div>
-
-                <CardContent className="p-5 flex-grow flex flex-col relative pt-12">
-                  {/* Avatar Overlay */}
-                  <div className="absolute -top-10 left-5 border-4 border-white dark:border-[#121212] rounded-xl overflow-hidden shadow-sm bg-white dark:bg-gray-900">
-                    <Avatar className="w-16 h-16 rounded-lg">
-                      <AvatarImage src={tolee.avatar} alt={tolee.name} className="object-cover" />
-                      <AvatarFallback className="rounded-lg">{tolee.name[0]}</AvatarFallback>
-                    </Avatar>
-                  </div>
-
-                  <div className="flex-grow">
-                    <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-2 line-clamp-1 group-hover:text-primary transition-colors">
-                      {tolee.name}
-                    </h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-3 mb-4 leading-relaxed">
-                      {tolee.description}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 mt-auto pt-4 border-t border-gray-100 dark:border-gray-800">
-                    <span className="flex items-center gap-1.5">
-                      {tolee.members} Members
-                    </span>
-                    <span className="mx-2">•</span>
-                    <span className={tolee.price === 'Free' ? 'text-gray-900 dark:text-white font-bold' : ''}>
-                      {tolee.price}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
+        <DiscoverGrid tolees={tolees} isAuthenticated={isAuthenticated} />
       </main>
     </div>
   );

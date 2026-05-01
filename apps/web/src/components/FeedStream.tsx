@@ -10,19 +10,52 @@ import { Heart, MessageCircle, Send, MoreHorizontal, Image as ImageIcon, Video, 
 import Link from 'next/link';
 
 import { CreatePostModal } from '@/components/CreatePostModal';
-import { createPost } from '@/actions/post';
+import { createPost, toggleLike, addComment } from '@/actions/post';
 
 export function FeedStream({ initialPosts }: { initialPosts: any[] }) {
   const hasJoinedTolees = true;
   const [feedPosts, setFeedPosts] = useState(initialPosts);
   const [isPosting, setIsPosting] = useState(false);
 
-  const handleLike = (id: string) => {
+  const [activeCommentPost, setActiveCommentPost] = useState<string | null>(null);
+  const [commentText, setCommentText] = useState('');
+
+  const handleLike = async (id: string) => {
+    // Optimistic update
     setFeedPosts(posts => 
       posts.map(post => 
-        post.id === id ? { ...post, likes: post.likes + 1 } : post
+        post.id === id 
+          ? { 
+              ...post, 
+              likes: post.likedByMe ? post.likes - 1 : post.likes + 1,
+              likedByMe: !post.likedByMe
+            } 
+          : post
       )
     );
+    // Server action
+    await toggleLike(id);
+  };
+
+  const handleCommentSubmit = async (postId: string) => {
+    if (!commentText.trim()) return;
+    
+    // Server action
+    const res = await addComment(postId, commentText);
+    if (res.success && res.comment) {
+      setFeedPosts(posts =>
+        posts.map(post =>
+          post.id === postId
+            ? {
+                ...post,
+                comments: post.comments + 1,
+                commentsList: [...(post.commentsList || []), res.comment]
+              }
+            : post
+        )
+      );
+      setCommentText('');
+    }
   };
 
   const handleNewPost = async (postData: any) => {
@@ -75,7 +108,7 @@ export function FeedStream({ initialPosts }: { initialPosts: any[] }) {
             </div>
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">Your Feed is Empty</h2>
             <p className="text-gray-500 mb-8 max-w-md">
-              Posts from the Tolees you join will appear here. Discover communities that match your interests to start building your feed.
+              Posts from the Tolees you join will appear here. Discover Tolees that match your interests to start building your feed.
             </p>
             <Link href="/">
               <Button className="px-8 py-6 text-base font-bold rounded-full shadow-md">
@@ -156,7 +189,7 @@ export function FeedStream({ initialPosts }: { initialPosts: any[] }) {
                   {post.isWin && (
                     <div className="mb-3 inline-flex items-center gap-1.5 bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
                       <Trophy className="w-3.5 h-3.5" /> 
-                      Community Win
+                      Tolee Win
                     </div>
                   )}
                   <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{post.content}</p>
@@ -185,16 +218,64 @@ export function FeedStream({ initialPosts }: { initialPosts: any[] }) {
                   </div>
                   
                   <div className="flex gap-1 w-full border-t border-gray-100 dark:border-gray-800 pt-2">
-                    <Button onClick={() => handleLike(post.id)} variant="ghost" className="flex-1 text-gray-500 hover:text-gray-900 dark:hover:text-white rounded-lg h-10 hover:bg-gray-100 dark:hover:bg-gray-900 active:bg-red-50 dark:active:bg-red-950 active:text-red-500 transition-colors">
-                      <Heart className="w-5 h-5 mr-2" /> Like
+                    <Button 
+                      onClick={() => handleLike(post.id)} 
+                      variant="ghost" 
+                      className={`flex-1 rounded-lg h-10 transition-colors ${post.likedByMe ? 'text-red-500 hover:text-red-600 bg-red-50 dark:bg-red-950/30' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-900'}`}
+                    >
+                      <Heart className={`w-5 h-5 mr-2 ${post.likedByMe ? 'fill-current' : ''}`} /> Like
                     </Button>
-                    <Button variant="ghost" className="flex-1 text-gray-500 hover:text-gray-900 dark:hover:text-white rounded-lg h-10 hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors">
+                    <Button 
+                      onClick={() => setActiveCommentPost(activeCommentPost === post.id ? null : post.id)} 
+                      variant="ghost" 
+                      className="flex-1 text-gray-500 hover:text-gray-900 dark:hover:text-white rounded-lg h-10 hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors"
+                    >
                       <MessageCircle className="w-5 h-5 mr-2" /> Comment
                     </Button>
-                    <Button variant="ghost" className="flex-1 text-gray-500 hover:text-gray-900 dark:hover:text-white rounded-lg h-10 hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors">
+                    <Button 
+                      onClick={() => alert('Link copied to clipboard!')}
+                      variant="ghost" 
+                      className="flex-1 text-gray-500 hover:text-gray-900 dark:hover:text-white rounded-lg h-10 hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors"
+                    >
                       <Send className="w-5 h-5 mr-2" /> Share
                     </Button>
                   </div>
+                  
+                  {/* Comments Section */}
+                  {activeCommentPost === post.id && (
+                    <div className="w-full mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+                      <div className="flex gap-2 mb-4">
+                        <Input 
+                          placeholder="Write a comment..." 
+                          value={commentText}
+                          onChange={(e) => setCommentText(e.target.value)}
+                          className="flex-1 bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-800"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleCommentSubmit(post.id);
+                          }}
+                        />
+                        <Button onClick={() => handleCommentSubmit(post.id)} size="sm">Post</Button>
+                      </div>
+                      
+                      <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                        {(post.commentsList || []).map((comment: any, idx: number) => (
+                          <div key={idx} className="flex gap-3">
+                            <Avatar className="w-8 h-8">
+                              <AvatarImage src={comment.author?.avatar || "https://i.pravatar.cc/150?u=a"} />
+                              <AvatarFallback>{comment.author?.name?.[0] || 'U'}</AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 bg-gray-50 dark:bg-gray-900 rounded-2xl px-4 py-2 text-sm">
+                              <span className="font-bold mr-2">{comment.author?.username || 'User'}</span>
+                              <span className="text-gray-700 dark:text-gray-300">{comment.content}</span>
+                            </div>
+                          </div>
+                        ))}
+                        {(!post.commentsList || post.commentsList.length === 0) && (
+                          <div className="text-center text-sm text-gray-500 py-2">No comments yet. Be the first to comment!</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </CardFooter>
               </Card>
             ))}
